@@ -1,23 +1,15 @@
-# == Class: mailman::params
+# == Class: mailman::apache
 #
-# This class is used to setup reasonable defaults for the essential parameters
-# of a Mailman configuration.
+# This is a helper class for Apache that provides a bare minimum configuration.
+# It is intended to help you get started quickly, but most people will probably
+# outgrow this setup and need to configure Apache with a different module.
 #
-# Unfortunately, Puppet manifests make it impossible to define parameters that
-# have default values which derive from other parameters to the same class.
-# The best workaround is to extract this logic into a "params" class and make
-# other classes inherit from this one to be sure that all of these variables
-# are realized. To have parameter defaults derive from other parameters more
-# than one layer deep, you need to use multiple layers of inheritance. I try
-# to keep it simple here, and only use one layer.
-#
-# To make things even more complicated, some distributions (especially RedHat)
-# have changed defaults and added new variables toward the goal of being
-# FHS compliant. http://wiki.list.org/pages/viewpage.action?pageId=8486957
+# Apache is an important part of Mailman as it provides for web-based
+# moderation, list management, and viewing of list archives.
 #
 # === Examples
 #
-# include mailman::params
+# include mailman::apache
 #
 # === Authors
 #
@@ -27,72 +19,99 @@
 #
 # Copyright 2013 Nic Waller, unless otherwise noted.
 #
-class mailman::params {
-  $mm_package = 'mailman'
-  $mm_service = 'mailman'
-  case $::osfamily {
-    'RedHat': {
-      $mm_username   = 'mailman'
-      $mm_groupname  = 'mailman'
-      $smtp_hostname = $::fqdn
-      $prefix        = '/usr/lib/mailman'
-      $exec_prefix   = $prefix
-      $var_prefix    = '/var/lib/mailman'
+class mailman::apache (
+  $prefix             = $mailman::params::prefix,
+  $mailman_cgi_dir    = $prefix + "/cgi-bin",
+  $mailman_icons_dir  = $prefix + "/icons",
+){
+  # have to keep http logs and mailman logs separate because of selinux
+  # TODO: create symlinks from mm logdir to http logdir
+  $log_dir            = $::apache::params::logroot
+  $public_archive_dir = $mailman::public_archive_file_dir
+  $server_name        = $mailman::http_hostname
+  $document_root      = '/var/www/html/mailman'
+  $custom_log_name    = 'apache_access_log'
+  $error_log_name     = 'apache_error_log'
+  $custom_log         = "${log_dir}/${custom_log_name}"
+  $error_log          = "${log_dir}/${error_log_name}"
+  $favicon            = "${document_root}/favicon.ico"
 
-      $list_data_dir = "${var_prefix}/lists"
-      $log_dir       = '/var/log/mailman'
-      $lock_dir      = '/var/lock/mailman'
-      $config_dir    = '/etc/mailman' # Unique to RedHat packages
-      $data_dir      = "${var_prefix}/data"
-      $pid_dir       = '/var/run/mailman' # Unique to RedHat packages
-      $spam_dir      = "${var_prefix}/spam"
-      $wrapper_dir   = "${exec_prefix}/mail"
-      $bin_dir       = "${prefix}/bin"
-      $scripts_dir   = "${prefix}/scripts"
-      if ($::operatingsystem=='Fedora') and ($::operatingsystemmajrelease==19){
-        $template_dir  = '/etc/mailman/templates'
-      } else {
-        $template_dir  = "${prefix}/templates"
+  if versioncmp($::apacheversion, '2.4.0') >= 0 {
+    fail('Apache 2.4 is not supported by this Puppet module.')
+  }
+
+  class { '::apache':
+    servername    => $server_name,
+    serveradmin   => "mailman@${mailman::smtp_hostname}",
+    default_mods  => true,
+    default_vhost => false,
+    logroot       => '/var/log/httpd',
+  }
+  apache::listen { '80': }
+
+  # TODO This is parse-order dependent. Can that be avoided?
+  $http_username      = $::apache::params::user
+  $http_groupname     = $::apache::params::group
+  $httpd_service      = $::apache::params::apache_name
+
+  include apache::mod::alias
+
+  $cf1 = "ScriptAlias /mailman ${mailman_cgi_dir}/"
+  $cf2 = "RedirectMatch ^/mailman[/]*$ http://${server_name}/mailman/listinfo"
+  $cf3 = "RedirectMatch ^/?$ http://${server_name}/mailman/listinfo"
+  $cf_all = "${cf1}\n${cf2}\n${cf3}\n"
+
+  apache::vhost { $server_name:
+    docroot         => $document_root,
+    docroot_owner   => $http_username,
+    docroot_group   => $http_groupname,
+    ssl             => false,
+    access_log_file => $custom_log_name,
+    error_log_file  => $error_log_name,
+    logroot         => $log_dir,
+    ip_based        => true, # dedicate apache to mailman
+    custom_fragment => $cf_all,
+    aliases         => [ {
+      alias => '/pipermail',
+      path  => $public_archive_dir
+    } ],
+    directories     => [
+      {
+        path           => $mailman_cgi_dir,
+        allow_override => ['None'],
+        options        => ['ExecCGI'],
+      },
+      {
+        path            => $public_archive_dir,
+        allow_override  => ['None'],
+        options         => ['Indexes', 'MultiViews', 'FollowSymLinks'],
+        custom_fragment => 'AddDefaultCharset Off'
       }
-      $messages_dir  = "${prefix}/messages"
-      # archive_dir is not a real Mailman param, it's just useful in this module
-      $archive_dir   = "${var_prefix}/archives"
-      $queue_dir     = '/var/spool/mailman'
+    ],
+  }
 
-      # Other useful files
-      $pid_file      = "${pid_dir}/master-qrunner.pid"
-    }
-    'Debian': {
-      $mm_username   = 'list'
-      $mm_groupname  = 'list'
-      # Mailman requires two more DNS labels but Debian systems
-      # only use single label "localhost" name.
-      $smtp_hostname = "mail.${::hostname}"
-      $prefix        = '/usr/lib/mailman'
-      $exec_prefix   = $prefix
-      $var_prefix    = '/var/lib/mailman'
+  # Spaceship Operator lets us defer setting group owner until we know it.
+  File <| title == $mailman::aliasfile |> {
+    group   => $http_groupname,
+  }
+  File <| title == $mailman::aliasfiledb |> {
+    group   => $http_groupname,
+  }
 
-      $list_data_dir = "${var_prefix}/lists"
-      $log_dir       = '/var/log/mailman'
-      $lock_dir      = '/var/lock/mailman'
-      #$config_dir    = '/etc/mailman'
-      $data_dir      = "${var_prefix}/data"
-      $pid_dir       = '/var/run/mailman'
-      $spam_dir      = "${var_prefix}/spam"
-      $wrapper_dir   = "${exec_prefix}/mail"
-      $bin_dir       = "${prefix}/bin"
-      $scripts_dir   = "${prefix}/scripts"
-      $template_dir  = '/etc/mailman' # unique to Debian
-      $messages_dir  = "${var_prefix}/messages"
-      # archive_dir is not a real Mailman param, it's just useful in this module
-      $archive_dir   = "${var_prefix}/archives"
-      $queue_dir     = '/var/spool/mailman'
+  file { [ $custom_log, $error_log ]:
+    ensure  => present,
+    owner   => $http_username,
+    group   => $http_groupname,
+    mode    => '0664',
+    seltype => 'httpd_log_t',
+  }
 
-      # Other useful files
-      $pid_file      = "${pid_dir}/master-qrunner.pid"
-    }
-    default: {
-      fail("Mailman module is not supported on ${::osfamily}.")
-    }
+  # Mailman does include a favicon in the HTML META section, but some silly
+  # browsers still look for favicon.ico. Create a blank one to reduce 404's.
+  exec { 'ensure_favicon':
+    command => "touch ${favicon}",
+    path    => '/bin',
+    creates => $favicon,
+    require => File[$document_root],
   }
 }
