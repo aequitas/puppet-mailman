@@ -79,14 +79,11 @@ class mailman::apache {
         path            => $mailman_cgi_dir,
         allow_override  => ['None'],
         options         => ['ExecCGI'],
-        order           => 'Allow,Deny',
-        allow           => 'from all'
       },
       {
         path            => $public_archive_dir,
         allow_override  => ['None'],
         options         => ['Indexes', 'MultiViews', 'FollowSymLinks'],
-        order           => 'Allow,Deny',
         custom_fragment => 'AddDefaultCharset Off'
       }
     ],
