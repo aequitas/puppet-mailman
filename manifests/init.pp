@@ -280,5 +280,7 @@ class mailman (
     ensure  => $enable_service,
     enable  => $enable_service,
     require => Exec['create_site_list'],
+    status  => 'pgrep -f /usr/lib/mailman/bin/mailmanctl',
+
   }
 }
