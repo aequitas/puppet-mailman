@@ -21,8 +21,8 @@ define mailman::list_config(
     require => [Class['mailman'], Maillist[$mlist]],
   }
   exec {"load configuration ${variable} on ${mlist}":
-    refreshonly => true,
-    command     => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf ${mlist}",
-    onlyif      => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf -c ${mlist}",
+    command => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf ${mlist}",
+    path    => "/bin:/sbin:/usr/bin:/usr/sbin",
+    onlyif  => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf -v -c ${mlist}|grep changed",
   }
 }
