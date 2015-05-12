@@ -23,6 +23,6 @@ define mailman::list_config(
   exec {"load configuration ${variable} on ${mlist}":
     command => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf ${mlist}",
     path    => "/bin:/sbin:/usr/bin:/usr/sbin",
-    onlyif  => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf -v -c ${mlist}|grep changed",
+    onlyif  => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf -v -c ${mlist} 2>&1|grep changed",
   }
 }
