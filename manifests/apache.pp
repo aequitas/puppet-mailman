@@ -20,17 +20,17 @@
 # Copyright 2013 Nic Waller, unless otherwise noted.
 #
 class mailman::apache (
-  $port = 80,
+  $port              = 80,
+  $prefix            = $mailman::params::prefix,
+  $mailman_cgi_dir   = $prefix + "/cgi-bin",
+  $mailman_icons_dir = $prefix + "/icons",
 ) {
-  $prefix             = $mailman::params::prefix
   # have to keep http logs and mailman logs separate because of selinux
   # TODO: create symlinks from mm logdir to http logdir
   $log_dir            = $::apache::params::logroot
   $public_archive_dir = $mailman::public_archive_file_dir
   $server_name        = $mailman::http_hostname
   $document_root      = '/var/www/html/mailman'
-  $mailman_cgi_dir    = "${prefix}/cgi-bin"
-  $mailman_icons_dir  = "${prefix}/icons"
   $custom_log_name    = 'apache_access_log'
   $error_log_name     = 'apache_error_log'
   $custom_log         = "${log_dir}/${custom_log_name}"
@@ -78,9 +78,9 @@ class mailman::apache (
     } ],
     directories     => [
       {
-        path            => $mailman_cgi_dir,
-        allow_override  => ['None'],
-        options         => ['ExecCGI'],
+        path           => $mailman_cgi_dir,
+        allow_override => ['None'],
+        options        => ['ExecCGI'],
       },
       {
         path            => $public_archive_dir,
