@@ -19,7 +19,9 @@
 #
 # Copyright 2013 Nic Waller, unless otherwise noted.
 #
-class mailman::apache {
+class mailman::apache (
+  $port = 80,
+) {
   $prefix             = $mailman::params::prefix
   # have to keep http logs and mailman logs separate because of selinux
   # TODO: create symlinks from mm logdir to http logdir
@@ -46,7 +48,7 @@ class mailman::apache {
     default_vhost => false,
     logroot       => '/var/log/httpd',
   }
-  apache::listen { '80': }
+  apache::listen { $port: }
 
   # TODO This is parse-order dependent. Can that be avoided?
   $http_username      = $::apache::params::user
