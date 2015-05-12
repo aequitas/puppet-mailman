@@ -17,12 +17,12 @@ define mailman::list_config(
     ensure  => $ensure,
     target  => "/var/lib/mailman/lists/${mlist}/puppet-config.conf",
     content => template('mailman/config_list.erb'),
-    notify  => Exec["load configuration ${variable} on ${mlist}"],
     require => [Class['mailman'], Maillist[$mlist]],
-  }
+  } ~>
   exec {"load configuration ${variable} on ${mlist}":
-    command => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf ${mlist}",
-    path    => "/bin:/sbin:/usr/bin:/usr/sbin",
-    onlyif  => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf -v -c ${mlist} 2>&1|grep changed",
+    refreshonly => true,
+    command     => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf ${mlist}",
+    path        => "/bin:/sbin:/usr/bin:/usr/sbin",
+    onlyif      => "config_list -i /var/lib/mailman/lists/${mlist}/puppet-config.conf -c ${mlist}",
   }
 }
