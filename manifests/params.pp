@@ -27,7 +27,9 @@
 #
 # Copyright 2013 Nic Waller, unless otherwise noted.
 #
-class mailman::params {
+class mailman::params (
+    $default_url_pattern = 'http://%s/mailman/'
+){
   $mm_package = 'mailman'
   $mm_service = 'mailman'
   case $::osfamily {
