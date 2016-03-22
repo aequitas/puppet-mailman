@@ -19,7 +19,7 @@
 class mailman::config inherits mailman::params {
   $default_url_host         = $mailman::http_hostname
   $default_email_host       = $mailman::default_email_host
-  $default_url_pattern      = 'http://%s/mailman/'
+  $default_url_pattern      = $mailman::default_url_pattern
   $mailman_site_list        = $mailman::mailman_site_list
   $language                 = $mailman::language
   $mta                      = $mailman::mta
